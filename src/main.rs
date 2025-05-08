@@ -1,4 +1,5 @@
 #![feature(try_trait_v2)]
+#![allow(dead_code)]
 
 use std::{thread::sleep, time::Duration};
 
@@ -10,7 +11,8 @@ fn main() {
 		command::Command::new(
 			"/bin/sleep",
 			vec!["5"]
-		)
+		),
+		String::from("logs/")
 	);
 
 	let _ = std::fs::remove_dir_all("logs");
@@ -29,5 +31,5 @@ fn main() {
 	for (i, exec) in task.iter().enumerate() {
 		println!("Execution {}: {}", i, exec.title())
 	}
-	dbg!(task);
+	dbg!(task.stats());
 }

@@ -6,7 +6,19 @@ use std::{
 pub enum Log {
 	Buffer(Vec<u8>),
 	File(String),
-	Nothing
+	Nothing,
+	Missing
+}
+
+impl Log {
+	pub fn from_vec(buffer: Vec<u8>) -> Self {
+		let n = buffer.len();
+		if n > 0 {
+			Log::Buffer(buffer)
+		} else {
+			Log::Nothing
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -27,6 +39,7 @@ impl CommandOutcome {
 #[derive(Debug)]
 pub enum TaskOutput {
     NoError(CommandOutcome),
+	Waiting,
     IOError(io::Error),
     ThreadError(Box<dyn Any + Send + 'static>),
 	PoisonError
@@ -34,15 +47,25 @@ pub enum TaskOutput {
 
 impl TaskOutput {
     pub fn title(&self) -> String {
-        use TaskOutput::*;
-
         match self {
-            NoError(_) => String::from("NoError"),
-            IOError(e) => format!("IOError ({})", e.to_string()),
-            ThreadError(_) => String::from("ThreadError"),
-			PoisonError => String::from("PoisonError")
+            TaskOutput::NoError(_) => String::from("NoError"),
+			TaskOutput::Waiting => String::from("Waiting"),
+            TaskOutput::IOError(e) => format!("IOError ({})", e.to_string()),
+            TaskOutput::ThreadError(_) => String::from("ThreadError"),
+			TaskOutput::PoisonError => String::from("PoisonError"),
         }
     }
+
+	pub fn is_error(&self) -> bool {
+        match self {
+            TaskOutput::NoError(_) |
+			TaskOutput::Waiting => false,
+
+            TaskOutput::IOError(_) |
+            TaskOutput::ThreadError(_) |
+			TaskOutput::PoisonError => true,
+        }
+	}
 }
 
 impl Try for TaskOutput {
@@ -56,23 +79,16 @@ impl Try for TaskOutput {
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
         TaskOutput::NoError(x) => ControlFlow::Continue(x),
-        _ => ControlFlow::Break(self)
+		TaskOutput::Waiting |
+		TaskOutput::IOError(_) |
+		TaskOutput::ThreadError(_) |
+		TaskOutput::PoisonError => ControlFlow::Break(self)
         }
     }
 }
 
 impl FromResidual<TaskOutput> for TaskOutput {
-    fn from_residual(res: TaskOutput) -> Self {
-        use TaskOutput::*;
-
-        match res {
-        NoError(_) => unreachable!(),
-        
-        IOError(e) => IOError(e),
-        ThreadError(e) => ThreadError(e),
-		PoisonError => PoisonError
-        }
-    }
+    fn from_residual(res: TaskOutput) -> Self { res }
 }
 
 impl FromResidual<Result<Infallible, io::Error>> for TaskOutput {
@@ -121,8 +137,8 @@ impl Command {
 
 		TaskOutput::NoError(CommandOutcome {
 			exit_status: output.status,
-			stdout: Log::Buffer(output.stdout),
-			stderr: Log::Buffer(output.stderr),
+			stdout: Log::from_vec(output.stdout),
+			stderr: Log::from_vec(output.stderr),
 			start: start,
 			duration: duration
 		})
