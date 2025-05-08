@@ -42,17 +42,19 @@ pub enum TaskOutput {
 	Waiting,
     IOError(io::Error),
     ThreadError(Box<dyn Any + Send + 'static>),
-	PoisonError
+	PoisonError,
+	TooManyThreadsError
 }
 
 impl TaskOutput {
-    pub fn title(&self) -> String {
+    pub fn summary(&self) -> String {
         match self {
             TaskOutput::NoError(_) => String::from("NoError"),
 			TaskOutput::Waiting => String::from("Waiting"),
             TaskOutput::IOError(e) => format!("IOError ({})", e.to_string()),
             TaskOutput::ThreadError(_) => String::from("ThreadError"),
 			TaskOutput::PoisonError => String::from("PoisonError"),
+			TaskOutput::TooManyThreadsError => String::from("TooManyThreadsError"),
         }
     }
 
@@ -63,6 +65,7 @@ impl TaskOutput {
 
             TaskOutput::IOError(_) |
             TaskOutput::ThreadError(_) |
+			TaskOutput::TooManyThreadsError |
 			TaskOutput::PoisonError => true,
         }
 	}
@@ -82,6 +85,7 @@ impl Try for TaskOutput {
 		TaskOutput::Waiting |
 		TaskOutput::IOError(_) |
 		TaskOutput::ThreadError(_) |
+		TaskOutput::TooManyThreadsError |
 		TaskOutput::PoisonError => ControlFlow::Break(self)
         }
     }

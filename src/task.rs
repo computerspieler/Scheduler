@@ -1,6 +1,9 @@
+
 use std::{
-    fs, sync::{Arc, RwLock}, thread::{self, JoinHandle}, time::Duration
+    fmt::{self, Formatter}, fs, sync::{Arc, RwLock}, thread::{self, JoinHandle}, time::Duration
 };
+
+use log::{debug, warn, error};
 
 use crate::command::*;
 
@@ -11,32 +14,55 @@ pub struct TaskStatistic {
     average_duration: Duration
 }
 
+impl fmt::Display for TaskStatistic {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        writeln!(fmt, "=== Statistics ===")?;
+        writeln!(fmt, "Execution count: {}", self.count)?;
+        writeln!(fmt, "Error rate: {}%", 100. * (self.error_count as f64) / (self.count as f64))?;
+        write!(fmt, "Average execution time: {:?}", self.average_duration)?;
+        
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct TaskConfig {
+    pub cmd: Command,
+    pub log_path: Option<String>,
+    pub max_concurrent_iteration: Option<usize>
+}
+
 #[derive(Debug)]
 pub struct Task {
-    cmd: Arc<RwLock<Command>>,
+    config: Arc<RwLock<TaskConfig>>,
 
     executions: Vec<TaskOutput>,
     running_threads: Vec<(usize, JoinHandle<TaskOutput>)>,
     stats: TaskStatistic,
-
-    log_path: Option<String>
 }
 
 impl Task {
-    pub fn new(cmd: Command, log_path: String) -> Self {
+    pub fn new(conf: TaskConfig) -> Self {
+        let running_threads = {
+            if let Some(max) = (&conf).max_concurrent_iteration {
+                Vec::with_capacity(max)
+            } else {
+                Vec::new()
+            }
+        };
+
         Self {
-            cmd: Arc::new(RwLock::new(cmd)),
-
+            config: Arc::new(RwLock::new(conf)),
             executions: Vec::new(),
-            running_threads: Vec::new(),
+            running_threads: running_threads,
             stats: TaskStatistic::default(),
-
-            log_path: Some(log_path)
         }
     }
     
-    fn update_log(&self, mut res: CommandOutcome, idx: usize) -> TaskOutput {
-        if let Some(path) = &self.log_path {
+    fn update_log(&self, idx: usize, output: TaskOutput) -> TaskOutput {
+        let mut res = output?;
+
+        if let Some(path) = &self.config.read()?.log_path {
             if let Log::Buffer(log) = &res.stdout {
                 let path = format!("{}/{}.out", path, idx);
                 fs::write(&path, log)?;
@@ -48,66 +74,86 @@ impl Task {
                 res.stderr = Log::File(path);
             }
         }
+
         TaskOutput::NoError(res)
     }
 
     fn update_stats(&mut self, res: &TaskOutput) {
-        let n = self.stats.count;
-        self.stats.count += 1;
-
         if let TaskOutput::NoError(outcome) = res {
+            let n = self.stats.count - self.stats.error_count;
             let n: u32 = n.try_into().unwrap();
             let n: f64 = n.try_into().unwrap();
             
             self.stats.average_duration =
                 self.stats.average_duration.mul_f64(n / (n + 1.)) +
                 outcome.duration.div_f64(n + 1.);
-        }
-
-        if res.is_error() {
+        } else {
             self.stats.error_count += 1;
         }
+        
+        self.stats.count += 1;
     }
 
-    fn update_log_and_stats(&mut self, handler: JoinHandle<TaskOutput>, idx: usize) -> TaskOutput {
-        let res = self.update_log(handler.join()??, idx);
-        self.update_stats(&res);
-        res
+    fn join(&mut self, handler: JoinHandle<TaskOutput>) -> TaskOutput {
+        TaskOutput::NoError(handler.join()??)
+    }
+
+    fn set_task_output(&mut self, idx: usize, output: TaskOutput) {
+        debug!("Execution n°{} is over", idx);
+
+        self.update_stats(&output);
+        self.executions[idx] = self.update_log(idx, output);
     }
 
     pub fn run(&mut self) {
-        let cmd = self.cmd.clone();
-
+        let conf = self.config.clone();
         let idx = self.executions.len();
+        
+        debug!("Starting execution n°{}", idx);
         self.executions.push(TaskOutput::Waiting);
+
+        if let Some(max) = conf.read().unwrap().max_concurrent_iteration {
+            let nb_concurrent_threads = self.running_threads.len();
+            if nb_concurrent_threads >= max {
+                self.set_task_output(idx, TaskOutput::TooManyThreadsError);
+                error!("Can't start execution n° {}: Too many concurrent threads", idx);
+                return;
+            } else if nb_concurrent_threads == 9 * max / 10 {
+                warn!("More than 90% of possible threads are running concurrently");
+            }
+        }
+
         self.running_threads.push((idx,
             thread::spawn(
                 move || -> TaskOutput {
-                    cmd.read()?.run()
+                    conf.read()?.cmd.run()
                 }
             )
         ));
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> bool {
+        let mut has_thread_finished = false;
         let mut n = self.running_threads.len();
         let mut i = 0;
 
         while i < n {
             if self.running_threads[i].1.is_finished() {
                 let (idx, handler) = self.running_threads.swap_remove(i);
-                let res = self.update_log_and_stats(handler, idx);
-                
-                self.executions[idx] = res;
+                let res = self.join(handler);
+                self.set_task_output(idx, res);
                 n -= 1;
+                has_thread_finished = true;
             } else {
                 i += 1;
             }
         }
+
+        has_thread_finished
     }
 
-    pub fn are_tasks_running(&self) -> bool {
-        self.running_threads.len() > 0
+    pub fn nb_running_tasks(&self) -> usize {
+        self.running_threads.len()
     }
 
     pub fn iter(&self) -> core::slice::Iter<'_, TaskOutput> {
