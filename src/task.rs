@@ -1,8 +1,9 @@
 
 use std::{
-    fmt::{self, Formatter}, fs, sync::{Arc, RwLock}, thread::{self, JoinHandle}, time::Duration
+    fmt::{self, Formatter}, fs, path::PathBuf, sync::{Arc, RwLock}, thread::{self, JoinHandle}, time::Duration
 };
 
+use serde::{Deserialize, Deserializer};
 use log::{debug, warn, error};
 
 use crate::command::*;
@@ -25,11 +26,15 @@ impl fmt::Display for TaskStatistic {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct TaskConfig {
     pub cmd: Command,
-    pub log_path: Option<String>,
-    pub max_concurrent_iteration: Option<usize>
+    pub max_concurrent_execution: Option<usize>,
+
+    #[serde(skip_deserializing)]
+    pub stdout_path: Option<PathBuf>,
+    #[serde(skip_deserializing)]
+    pub stderr_path: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -41,10 +46,19 @@ pub struct Task {
     stats: TaskStatistic,
 }
 
+impl<'de> Deserialize<'de> for Task {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer<'de> {
+        Ok(Task::new(
+            TaskConfig::deserialize(deserializer)?
+        ))
+    }
+}
+
 impl Task {
     pub fn new(conf: TaskConfig) -> Self {
         let running_threads = {
-            if let Some(max) = (&conf).max_concurrent_iteration {
+            if let Some(max) = (&conf).max_concurrent_execution {
                 Vec::with_capacity(max)
             } else {
                 Vec::new()
@@ -58,18 +72,40 @@ impl Task {
             stats: TaskStatistic::default(),
         }
     }
+
+    pub fn set_log_path(&mut self, path: PathBuf) {
+        if !path.exists() {
+            std::fs::create_dir(&path).unwrap();
+        }
+
+        let stdout_path = path.join("out");
+        if !stdout_path.exists() {
+            std::fs::create_dir(&stdout_path).unwrap();
+        }
+        let stderr_path = path.join("err");
+        if !stderr_path.exists() {
+            std::fs::create_dir(&stderr_path).unwrap();
+        }
+        
+        let mut conf = self.config.write().unwrap();
+        conf.stdout_path = Some(stdout_path);
+        conf.stderr_path = Some(stderr_path);
+    }
     
     fn update_log(&self, idx: usize, output: TaskOutput) -> TaskOutput {
         let mut res = output?;
 
-        if let Some(path) = &self.config.read()?.log_path {
+        if let Some(path) = &self.config.read()?.stdout_path {
             if let Log::Buffer(log) = &res.stdout {
-                let path = format!("{}/{}.out", path, idx);
+                let path = path.join(idx.to_string());
                 fs::write(&path, log)?;
                 res.stdout = Log::File(path);
             }
+        }
+
+        if let Some(path) = &self.config.read()?.stderr_path {
             if let Log::Buffer(log) = &res.stderr {
-                let path = format!("{}/{}.err", path, idx);
+                let path = path.join(idx.to_string());
                 fs::write(&path, log)?;
                 res.stderr = Log::File(path);
             }
@@ -90,7 +126,7 @@ impl Task {
         } else {
             self.stats.error_count += 1;
         }
-        
+
         self.stats.count += 1;
     }
 
@@ -112,7 +148,7 @@ impl Task {
         debug!("Starting execution n°{}", idx);
         self.executions.push(TaskOutput::Waiting);
 
-        if let Some(max) = conf.read().unwrap().max_concurrent_iteration {
+        if let Some(max) = conf.read().unwrap().max_concurrent_execution {
             let nb_concurrent_threads = self.running_threads.len();
             if nb_concurrent_threads >= max {
                 self.set_task_output(idx, TaskOutput::TooManyThreadsError);

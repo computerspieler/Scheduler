@@ -1,12 +1,8 @@
-#![feature(try_trait_v2)]
-#![allow(dead_code)]
+use std::{env, thread, time::Duration};
 
-use std::{thread::sleep, time::Duration};
+use log::{Level, LevelFilter, Metadata, Record};
 
-use log::{info, Record, Level, Metadata, LevelFilter};
-
-mod command;
-mod task;
+use scheduler::environment::Environment;
 
 struct SimpleLogger;
 
@@ -27,22 +23,30 @@ impl log::Log for SimpleLogger {
 static LOGGER: SimpleLogger = SimpleLogger;
 
 fn main() {
-	let mut task = task::Task::new(task::TaskConfig {
-		cmd: command::Command::new(
-			"/bin/sleep",
-			vec!["5"]
-		),
-		log_path: Some(String::from("logs/")),
-		max_concurrent_iteration: Some(700)
-	});
-
-	let _ = std::fs::remove_dir_all("logs");
-	let _ = std::fs::create_dir("logs");
-
 	log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info))
 		.unwrap();
-	
+
+	let conf_path: Vec<String> = env::args().collect();
+	if conf_path.len() != 2 {
+		panic!("Usage: ./scheduler [PATH TO CONFIG]");
+	}
+
+	let mut env: Environment = serde_json::from_str(
+		&String::from_utf8(
+			std::fs::read(&conf_path[1])
+				.unwrap()
+		).unwrap()
+		.as_str()
+	).unwrap();
+
+	dbg!(&env);
+	loop {
+		env.update();
+
+		thread::sleep(Duration::from_millis(500));
+	}
+/*	
 	for _ in 0 .. 300 {
 		task.run();
 	}
@@ -53,7 +57,7 @@ fn main() {
 		}
 
 		if task.update() {
-			sleep(Duration::from_millis(50));
+			sleep(Duration::from_millis(1000));
 		} else {
 			if nb_iterations < 20 {
 				for _ in 0 .. 100 {
@@ -64,6 +68,6 @@ fn main() {
 		}
 		info!("Waiting, {} running threads", task.nb_running_tasks());
 	}
-
 	info!("{}", task.stats());
+	*/
 }

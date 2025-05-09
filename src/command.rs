@@ -1,11 +1,13 @@
 use std::{
-	any::Any, collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, process::ExitStatus, sync::PoisonError, thread, time::{Duration, Instant}
+	any::Any, collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, path::PathBuf, process::ExitStatus, sync::PoisonError, thread, time::{Duration, Instant}
 };
+
+use serde::Deserialize;
 
 #[derive(Debug)]
 pub enum Log {
 	Buffer(Vec<u8>),
-	File(String),
+	File(PathBuf),
 	Nothing,
 	Missing
 }
@@ -113,30 +115,35 @@ impl<T> FromResidual<Result<Infallible, PoisonError<T>>> for TaskOutput {
     }
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Command {
-	command: String,
-	arguments: Vec<String>,
-	envs: HashMap<String, String>
+    #[serde(rename = "program")]
+	pub command: String,
+    #[serde(rename = "args")]
+	pub arguments: Vec<String>,
+    #[serde(rename = "envs")]
+	pub envs: Option<HashMap<String, String>>,
+    #[serde(rename = "chdir")]
+	#[serde(default = "default_path")]
+	pub current_dir: PathBuf
+}
+
+fn default_path() -> PathBuf {
+	std::env::current_dir().unwrap()
 }
 
 impl Command {
-	pub fn new<CS: ToString, AS: ToString>(command: CS, arguments: Vec<AS>) -> Self {
-		Self {
-			command: command.to_string(),
-			arguments: arguments.into_iter()
-				.map(|x| x.to_string())
-				.collect(),
-			envs: HashMap::new()
-		}
-	}
-
 	pub fn run(&self) -> TaskOutput {
 		let start = Instant::now();
-		let output = std::process::Command::new(&self.command)
-			.args(&self.arguments)
-			.envs(&self.envs)
-			.output()?;
+		let mut cmd = std::process::Command::new(&self.command);
+
+		cmd.args(&self.arguments);
+		if let Some(map) = &self.envs {
+			cmd.envs(map);
+		}
+		cmd.current_dir(&self.current_dir);
+
+		let output = cmd.output()?;
 		let duration = start.elapsed();
 
 		TaskOutput::NoError(CommandOutcome {
