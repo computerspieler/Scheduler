@@ -2,9 +2,10 @@ use std::{env, sync::{Arc, RwLock}, thread, time::Duration};
 
 use log::LevelFilter;
 
-use common::{
-	environment::Environment, log::SimpleLogger
-};
+use common::log::SimpleLogger;
+use crate::environment::Environment;
+
+mod environment;
 
 pub static LOGGER: SimpleLogger = SimpleLogger;
 

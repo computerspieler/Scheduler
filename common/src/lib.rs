@@ -5,5 +5,5 @@ pub mod command;
 pub mod task;
 pub mod utils;
 pub mod group;
-pub mod environment;
 pub mod log;
+pub mod queries;

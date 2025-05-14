@@ -4,7 +4,7 @@ use log::{error, info};
 use serde::{de::Deserializer, Deserialize};
 use serde_json;
 
-use crate::group::TaskGroup;
+use common::{group::TaskGroup, queries::Queries};
 
 #[derive(Debug)]
 pub struct Environment {
@@ -40,17 +40,6 @@ impl<'de> Deserialize<'de> for Environment {
 }
 
 impl Environment {
-    fn add_new_group(&mut self, mut task_group: TaskGroup) {
-        let id = self.groups.len();
-
-        if let Some(path) = &self.log {
-            let group_path = Self::get_task_group_log_path(&path, id);
-            task_group.set_log_path(group_path);
-        }
-
-        self.groups.push(task_group)
-    }
-
     fn on_new_stream(&mut self, mut stream: TcpStream, addr: SocketAddr) {
         info!("[ENV] New connection from {}", addr);
 
@@ -58,7 +47,8 @@ impl Environment {
         match stream.read_to_string(&mut buf) {
         Ok(_) => {
             match serde_json::from_str(buf.as_str()) {
-            Ok(tgroup) => self.add_new_group(tgroup),
+            Ok(Queries::NewTaskGroup(stg)) =>
+                self.add_new_group(TaskGroup::from(stg)),
             Err(e) => error!("[ENV] Error while parsing data: {}", e)
             }
         },
@@ -83,6 +73,17 @@ impl Environment {
 
     fn get_task_group_log_path(path: &PathBuf, id: usize) -> PathBuf{
         path.join(id.to_string())
+    }
+
+    fn add_new_group(&mut self, mut task_group: TaskGroup) {
+        let id = self.groups.len();
+
+        if let Some(path) = &self.log {
+            let group_path = Self::get_task_group_log_path(&path, id);
+            task_group.set_log_path(group_path);
+        }
+
+        self.groups.push(task_group)
     }
 
     fn set_log_path(&mut self, path: PathBuf) {

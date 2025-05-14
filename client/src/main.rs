@@ -3,7 +3,7 @@ use std::{env, io::{self, Write}, net::TcpStream};
 use log::LevelFilter;
 
 use common::{
-	group::SerializedTaskGroup, log::SimpleLogger
+	group::SerializedTaskGroup, log::SimpleLogger, queries::Queries
 };
 
 pub static LOGGER: SimpleLogger = SimpleLogger;
@@ -26,7 +26,10 @@ fn main() -> io::Result<()> {
         .as_str()
     ).unwrap();
 
-    let formatted_conf = serde_json::to_string(&task_group).unwrap();
+    let formatted_conf =
+        serde_json::to_string(
+            &Queries::NewTaskGroup(task_group)
+        ).unwrap();
     
     let mut stream = TcpStream::connect("127.0.0.1:65533")?;
     stream.write(formatted_conf.as_bytes())?;

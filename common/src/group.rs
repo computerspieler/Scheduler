@@ -27,22 +27,8 @@ pub struct SerializedTaskGroup {
 impl<'de> Deserialize<'de> for TaskGroup {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        let conf = SerializedTaskGroup::deserialize(deserializer)?;
-        Ok(TaskGroup::new(
-            conf.name,
-            conf.starts_at.map(|x|
-                get_start_timestamp_from_string(x.as_str())
-                    .expect(format!("Invalid date: {}", x).as_str())
-            ),
-            conf.period.map(|x|
-                get_period_from_string(x.as_str())
-                    .expect(format!("Invalid period: {}", x).as_str())
-            ),
-            conf.processes.iter()
-                .map(|conf| {
-                    Task::new(conf.clone())
-                })
-                .collect()
+        Ok(TaskGroup::from(
+            SerializedTaskGroup::deserialize(deserializer)?
         ))
     }
 }
@@ -61,6 +47,27 @@ impl Serialize for TaskGroup {
                 .map(|task| task.config())
                 .collect()
         }.serialize(serializer)
+    }
+}
+
+impl From<SerializedTaskGroup> for TaskGroup {
+    fn from(conf: SerializedTaskGroup) -> Self {
+        TaskGroup::new(
+            conf.name,
+            conf.starts_at.map(|x|
+                get_start_timestamp_from_string(x.as_str())
+                    .expect(format!("Invalid date: {}", x).as_str())
+            ),
+            conf.period.map(|x|
+                get_period_from_string(x.as_str())
+                    .expect(format!("Invalid period: {}", x).as_str())
+            ),
+            conf.processes.iter()
+                .map(|conf| {
+                    Task::new(conf.clone())
+                })
+                .collect()
+        )
     }
 }
 
