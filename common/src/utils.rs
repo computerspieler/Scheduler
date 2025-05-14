@@ -1,5 +1,3 @@
-use std::fmt::Formatter;
-
 use chrono::{DateTime, Datelike, Duration, Months, TimeZone, Timelike, Utc};
 
 macro_rules! check_char {
@@ -107,9 +105,9 @@ impl YmdHmsDuration {
     }
 }
 
-impl std::fmt::Display for YmdHmsDuration {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(fmt, "{}-{}-{} {}:{}:{}",
+impl ToString for YmdHmsDuration {
+    fn to_string(&self) -> std::string::String {
+        format!( "{}-{}-{} {}:{}:{}",
             self.year, self.month, self.day,
             self.hour, self.min,   self.sec
         )

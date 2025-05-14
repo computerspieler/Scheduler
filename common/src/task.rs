@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Formatter}, fs, path::PathBuf, sync::{Arc, RwLock}, thread::{self, JoinHandle}, time::Duration
 };
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Serialize};
 use log::{debug, warn, error};
 
 use crate::command::*;
@@ -26,7 +26,7 @@ impl fmt::Display for TaskStatistic {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskConfig {
     pub cmd: Command,
     pub max_concurrent_execution: Option<usize>,
@@ -46,15 +46,6 @@ pub struct Task {
     stats: TaskStatistic,
 }
 
-impl<'de> Deserialize<'de> for Task {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
-        Ok(Task::new(
-            TaskConfig::deserialize(deserializer)?
-        ))
-    }
-}
-
 impl Task {
     pub fn new(conf: TaskConfig) -> Self {
         let running_threads = {
@@ -71,6 +62,10 @@ impl Task {
             running_threads: running_threads,
             stats: TaskStatistic::default(),
         }
+    }
+
+    pub fn config(&self) -> TaskConfig {
+        (*self.config).read().unwrap().clone()
     }
 
     pub fn set_log_path(&mut self, path: PathBuf) {

@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use log::info;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{task::Task, utils::{YmdHmsDuration, get_start_timestamp_from_string, get_period_from_string}};
+use crate::{task::{Task, TaskConfig}, utils::{get_period_from_string, get_start_timestamp_from_string, YmdHmsDuration}};
 
 #[derive(Debug)]
 pub struct TaskGroup {
@@ -16,30 +16,51 @@ pub struct TaskGroup {
     next_execution: Option<DateTime<Utc>>
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct SerializedTaskGroup {
+    name: String,
+    starts_at: Option<String>,
+    period: Option<String>,
+    processes: Vec<TaskConfig>
+}
+
 impl<'de> Deserialize<'de> for TaskGroup {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        #[derive(Deserialize)]
-        struct TaskGroupFromJson<'a> {
-            name: String,
-            starts_at: Option<&'a str>,
-            period: Option<&'a str>,
-            processes: Vec<Task>
-        }
-
-        let conf = TaskGroupFromJson::deserialize(deserializer)?;
+        let conf = SerializedTaskGroup::deserialize(deserializer)?;
         Ok(TaskGroup::new(
             conf.name,
             conf.starts_at.map(|x|
-                get_start_timestamp_from_string(x)
+                get_start_timestamp_from_string(x.as_str())
                     .expect(format!("Invalid date: {}", x).as_str())
             ),
             conf.period.map(|x|
-                get_period_from_string(x)
+                get_period_from_string(x.as_str())
                     .expect(format!("Invalid period: {}", x).as_str())
             ),
-            conf.processes
+            conf.processes.iter()
+                .map(|conf| {
+                    Task::new(conf.clone())
+                })
+                .collect()
         ))
+    }
+}
+
+impl Serialize for TaskGroup {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+        SerializedTaskGroup {
+            name: self.name.clone(),
+            starts_at: self.starts_at
+                .map(|dt| { dt.to_string() }),
+            period: self.period
+                .as_ref()
+                .map(|per| { per.to_string() }),
+            processes: self.processes.iter()
+                .map(|task| task.config())
+                .collect()
+        }.serialize(serializer)
     }
 }
 

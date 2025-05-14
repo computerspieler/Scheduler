@@ -2,7 +2,7 @@ use std::{
 	any::Any, collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, path::PathBuf, process::ExitStatus, sync::PoisonError, thread, time::{Duration, Instant}
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum Log {
@@ -115,7 +115,7 @@ impl<T> FromResidual<Result<Infallible, PoisonError<T>>> for TaskOutput {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Debug, Serialize)]
 pub struct Command {
     #[serde(rename = "program")]
 	pub command: String,

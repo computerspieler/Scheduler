@@ -62,6 +62,12 @@ dependencies = [
 [[package]]
 name = "client"
 version = "0.1.0"
+dependencies = [
+ "common",
+ "log",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "common"
@@ -70,6 +76,7 @@ dependencies = [
  "chrono",
  "log",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
