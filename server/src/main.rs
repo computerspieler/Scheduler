@@ -29,7 +29,6 @@ fn main() {
 		).unwrap()
 	));
 	
-	dbg!(&env);
 	loop {
 		env.write().unwrap().update();
 		thread::sleep(Duration::from_millis(500));

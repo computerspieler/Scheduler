@@ -1,6 +1,6 @@
 use std::{io::{ErrorKind, Read}, net::{SocketAddr, TcpListener, TcpStream}, path::PathBuf};
 
-use log::{error, info};
+use log::{debug, error, info};
 use serde::{de::Deserializer, Deserialize};
 use serde_json;
 
@@ -10,7 +10,7 @@ use common::{group::TaskGroup, queries::Queries};
 pub struct Environment {
     groups: Vec<TaskGroup>,
     log: Option<PathBuf>,
-    listener: TcpListener
+    listener: Option<TcpListener>
 }
 
 impl<'de> Deserialize<'de> for Environment {
@@ -19,6 +19,7 @@ impl<'de> Deserialize<'de> for Environment {
         #[derive(Deserialize)]
         pub struct EnvironmentJson {
             log: Option<PathBuf>,
+            listening: Option<String>,
             groups: Vec<TaskGroup>
         }
 
@@ -26,10 +27,14 @@ impl<'de> Deserialize<'de> for Environment {
         let mut output = Environment {
             groups: val.groups,
             log: None,
-            //TODO: Set the listener based on config
-	        listener: TcpListener::bind("127.0.0.1:65533").unwrap()
+	        listener: val.listening
+                .map(|addr| {
+                    let out = TcpListener::bind(&addr).expect("Unable to connect");
+                    info!("Sucessfully connected to {}", addr);
+                    out.set_nonblocking(true).expect("Unable to make it non-blocking");
+                    out
+                })
         };
-        output.listener.set_nonblocking(true).unwrap();
 
         if let Some(path) = val.log {
             output.set_log_path(path);
@@ -58,14 +63,16 @@ impl Environment {
     }
 
     pub fn update(&mut self) {
-        info!("[ENV] Checking for new updates");
-        match self.listener.accept() {
-        Ok((stream, addr)) => self.on_new_stream(stream, addr),
-        Err(e) if e.kind() == ErrorKind::WouldBlock => {}
-        Err(e) => error!("[ENV] Network Error: {}", e)
+        debug!("[ENV] Checking for new updates");
+        if let Some(l) = &self.listener {
+            match l.accept() {
+            Ok((stream, addr)) => self.on_new_stream(stream, addr),
+            Err(e) if e.kind() == ErrorKind::WouldBlock => {}
+            Err(e) => error!("[ENV] Network Error: {}", e)
+            }
         }
-
-        info!("[ENV] Update");
+    
+        debug!("[ENV] Update");
         for group in self.groups.iter_mut() {
             group.update();
         }

@@ -1,5 +1,6 @@
 {
     "log": "logs",
+    "listening": "127.0.0.1:65533",
     "groups": [
         {
             "name": "Group 1",

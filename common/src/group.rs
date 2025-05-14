@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use log::info;
+use log::{debug, info};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -133,19 +133,19 @@ impl TaskGroup {
 
         let mut has_anything_changed = false;
 
-        info!("\"{}\": Updating", self.name);
+        debug!("\"{}\": Updating", self.name);
         for task in self.processes.iter_mut() {
             has_anything_changed |= task.update();
         }
 
         if self.next_execution.is_none() {
-            info!("\"{}\": No update planned", self.name);
+            debug!("\"{}\": No update planned", self.name);
             return has_anything_changed;
         }
 
         let next_execution = self.next_execution.unwrap();
         if next_execution > now {
-            info!("\"{}\": Too early (it's {})", self.name, now);
+            debug!("\"{}\": Too early (it's {})", self.name, now);
             return has_anything_changed;
         }
 
