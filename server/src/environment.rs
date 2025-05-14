@@ -1,77 +1,17 @@
-use std::{io::{ErrorKind, Read}, net::{SocketAddr, TcpListener, TcpStream}, path::PathBuf};
+use std::path::PathBuf;
 
-use log::{debug, error, info};
-use serde::{de::Deserializer, Deserialize};
-use serde_json;
+use log::debug;
 
-use common::{group::TaskGroup, queries::Queries};
+use common::{group::TaskGroup};
 
 #[derive(Debug)]
 pub struct Environment {
-    groups: Vec<TaskGroup>,
-    log: Option<PathBuf>,
-    listener: Option<TcpListener>
-}
-
-impl<'de> Deserialize<'de> for Environment {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
-        #[derive(Deserialize)]
-        pub struct EnvironmentJson {
-            log: Option<PathBuf>,
-            listening: Option<String>,
-            groups: Vec<TaskGroup>
-        }
-
-        let val = EnvironmentJson::deserialize(deserializer)?;
-        let mut output = Environment {
-            groups: val.groups,
-            log: None,
-	        listener: val.listening
-                .map(|addr| {
-                    let out = TcpListener::bind(&addr).expect("Unable to connect");
-                    info!("Sucessfully connected to {}", addr);
-                    out.set_nonblocking(true).expect("Unable to make it non-blocking");
-                    out
-                })
-        };
-
-        if let Some(path) = val.log {
-            output.set_log_path(path);
-        }
-
-        Ok(output)
-    }
+    pub groups: Vec<TaskGroup>,
+    pub log: Option<PathBuf>,
 }
 
 impl Environment {
-    fn on_new_stream(&mut self, mut stream: TcpStream, addr: SocketAddr) {
-        info!("[ENV] New connection from {}", addr);
-
-        let mut buf = String::new();
-        match stream.read_to_string(&mut buf) {
-        Ok(_) => {
-            match serde_json::from_str(buf.as_str()) {
-            Ok(Queries::NewTaskGroup(stg)) =>
-                self.add_new_group(TaskGroup::from(stg)),
-            Err(e) => error!("[ENV] Error while parsing data: {}", e)
-            }
-        },
-        Err(e) => 
-            error!("[ENV] Error while retrieving data: {}", e)
-        }
-    }
-
     pub fn update(&mut self) {
-        debug!("[ENV] Checking for new updates");
-        if let Some(l) = &self.listener {
-            match l.accept() {
-            Ok((stream, addr)) => self.on_new_stream(stream, addr),
-            Err(e) if e.kind() == ErrorKind::WouldBlock => {}
-            Err(e) => error!("[ENV] Network Error: {}", e)
-            }
-        }
-    
         debug!("[ENV] Update");
         for group in self.groups.iter_mut() {
             group.update();
@@ -82,7 +22,7 @@ impl Environment {
         path.join(id.to_string())
     }
 
-    fn add_new_group(&mut self, mut task_group: TaskGroup) {
+    pub fn add_new_group(&mut self, mut task_group: TaskGroup) {
         let id = self.groups.len();
 
         if let Some(path) = &self.log {
@@ -93,7 +33,7 @@ impl Environment {
         self.groups.push(task_group)
     }
 
-    fn set_log_path(&mut self, path: PathBuf) {
+    pub fn set_log_path(&mut self, path: PathBuf) {
         if !path.exists() {
             std::fs::create_dir(&path).unwrap();
         }

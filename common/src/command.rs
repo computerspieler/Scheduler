@@ -1,5 +1,5 @@
 use std::{
-	any::Any, collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, path::PathBuf, process::ExitStatus, sync::PoisonError, thread, time::{Duration, Instant}
+	collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, path::PathBuf, process::ExitStatus, sync::PoisonError, time::{Duration, Instant}
 };
 
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,6 @@ pub enum TaskOutput {
     NoError(CommandOutcome),
 	Waiting,
     IOError(io::Error),
-    ThreadError(Box<dyn Any + Send + 'static>),
 	PoisonError,
 	TooManyThreadsError
 }
@@ -54,7 +53,6 @@ impl TaskOutput {
             TaskOutput::NoError(_) => String::from("NoError"),
 			TaskOutput::Waiting => String::from("Waiting"),
             TaskOutput::IOError(e) => format!("IOError ({})", e.to_string()),
-            TaskOutput::ThreadError(_) => String::from("ThreadError"),
 			TaskOutput::PoisonError => String::from("PoisonError"),
 			TaskOutput::TooManyThreadsError => String::from("TooManyThreadsError"),
         }
@@ -66,7 +64,6 @@ impl TaskOutput {
 			TaskOutput::Waiting => false,
 
             TaskOutput::IOError(_) |
-            TaskOutput::ThreadError(_) |
 			TaskOutput::TooManyThreadsError |
 			TaskOutput::PoisonError => true,
         }
@@ -86,7 +83,6 @@ impl Try for TaskOutput {
         TaskOutput::NoError(x) => ControlFlow::Continue(x),
 		TaskOutput::Waiting |
 		TaskOutput::IOError(_) |
-		TaskOutput::ThreadError(_) |
 		TaskOutput::TooManyThreadsError |
 		TaskOutput::PoisonError => ControlFlow::Break(self)
         }
@@ -100,12 +96,6 @@ impl FromResidual<TaskOutput> for TaskOutput {
 impl FromResidual<Result<Infallible, io::Error>> for TaskOutput {
     fn from_residual(res: Result<Infallible, io::Error>) -> Self {
         Self::IOError(res.unwrap_err())
-    }
-}
-
-impl FromResidual<thread::Result<Infallible>> for TaskOutput {
-    fn from_residual(res: thread::Result<Infallible>) -> Self {
-        Self::ThreadError(res.unwrap_err())
     }
 }
 

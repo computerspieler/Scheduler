@@ -126,7 +126,7 @@ impl Task {
     }
 
     fn join(&mut self, handler: JoinHandle<TaskOutput>) -> TaskOutput {
-        TaskOutput::NoError(handler.join()??)
+        TaskOutput::NoError(handler.join().unwrap()?)
     }
 
     fn set_task_output(&mut self, idx: usize, output: TaskOutput) {
