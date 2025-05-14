@@ -26,6 +26,21 @@
                     "max_concurrent_execution": 2
                 }
             ]
+        },
+        {
+            "name": "Group 1",
+            "starts_at": "****-**-**T**:**:00-0001",
+            "period": "0000-00-00 00:01:00",
+            "processes": [
+                {
+                    "name": "Wait for stuff",
+                    "cmd": {
+                        "program": "/bin/echo",
+                        "args": ["Yay"],
+                        "chdir": "/home/user"
+                    }
+                }
+            ]
         }
     ]
 }

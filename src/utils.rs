@@ -1,4 +1,6 @@
-use chrono::{DateTime, Datelike, Duration, TimeDelta, TimeZone, Timelike, Utc};
+use std::fmt::Formatter;
+
+use chrono::{DateTime, Datelike, Duration, Months, TimeZone, Timelike, Utc};
 
 macro_rules! check_char {
     ($time: ident [$n: literal], $c: literal) => {
@@ -84,7 +86,37 @@ pub fn get_start_timestamp_from_string(time: &str) -> Option<DateTime<Utc>> {
     Some(date + tz_shift)
 }
 
-pub fn get_period_from_string(time: &str) -> Option<TimeDelta> {
+#[derive(Debug)]
+pub struct YmdHmsDuration {
+    year: u32,
+    month: u32,
+    day: i64,
+    hour: i64,
+    min: i64,
+    sec: i64,
+}
+
+impl YmdHmsDuration {
+    pub fn add(&self, other: DateTime<Utc>) -> DateTime<Utc> {
+        other +
+            Months::new(12 * self.year + self.month) +
+            Duration::seconds(self.sec) +
+            Duration::minutes(self.min) +
+            Duration::hours(self.hour) +
+            Duration::days(self.day)
+    }
+}
+
+impl std::fmt::Display for YmdHmsDuration {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(fmt, "{}-{}-{} {}:{}:{}",
+            self.year, self.month, self.day,
+            self.hour, self.min,   self.sec
+        )
+    }
+}
+
+pub fn get_period_from_string(time: &str) -> Option<YmdHmsDuration> {
     if time.len() != 19 {
         return None;
     }
@@ -101,12 +133,13 @@ pub fn get_period_from_string(time: &str) -> Option<TimeDelta> {
     check_char!(time[16], ':');
     let sec = time[17 .. 19].parse().ok()?;
 
-    Some(
-        TimeDelta::days(year) +
-        TimeDelta::days(month) +
-        TimeDelta::days(day) +
-        TimeDelta::days(hour) +
-        TimeDelta::days(min) +
-        TimeDelta::days(sec)
+    Some(YmdHmsDuration {
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        min: min,
+        sec: sec
+    }
     )
 }

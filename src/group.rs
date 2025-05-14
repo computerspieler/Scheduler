@@ -1,16 +1,16 @@
 use std::path::PathBuf;
 
 use log::info;
-use chrono::{DateTime, Duration, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer};
 
-use crate::{task::Task, utils::{get_start_timestamp_from_string, get_period_from_string}};
+use crate::{task::Task, utils::{YmdHmsDuration, get_start_timestamp_from_string, get_period_from_string}};
 
 #[derive(Debug)]
 pub struct TaskGroup {
     name: String,
     starts_at: Option<DateTime<Utc>>,
-    period: Option<TimeDelta>,
+    period: Option<YmdHmsDuration>,
     processes: Vec<Task>,
 
     next_execution: Option<DateTime<Utc>>
@@ -47,7 +47,7 @@ impl TaskGroup {
     pub fn new(
         name: String,
         starts_at: Option<DateTime<Utc>>,
-        period: Option<TimeDelta>,
+        period: Option<YmdHmsDuration>,
         processes: Vec<Task>
     ) -> Self {
         let mut out = Self {
@@ -79,15 +79,20 @@ impl TaskGroup {
 
     fn update_next_execution(&mut self, last_execution: DateTime<Utc>) {
         let now = Utc::now();
-
-        if last_execution > now {
-            self.next_execution = Some(last_execution);
-        } else {
-            self.next_execution = self.period.map(|period| {
-                now + period - Duration::milliseconds(
-                    (now - last_execution).num_milliseconds() % period.num_milliseconds()
-                )
-            });
+        match &self.period {
+        None => self.next_execution =
+            if last_execution > now {
+                Some(last_execution)
+            } else {
+                None
+            },
+        Some(period) => {
+            let mut next_execution = last_execution;
+            while next_execution < now {
+                next_execution = period.add(next_execution);
+            }
+            self.next_execution = Some(next_execution);
+        }
         }
     }
 
