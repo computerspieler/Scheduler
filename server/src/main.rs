@@ -2,7 +2,7 @@ use std::{env, thread, time::Duration};
 
 use log::{Level, LevelFilter, Metadata, Record};
 
-use scheduler::environment::Environment;
+use common::environment::Environment;
 
 struct SimpleLogger;
 
@@ -46,28 +46,4 @@ fn main() {
 
 		thread::sleep(Duration::from_millis(500));
 	}
-/*	
-	for _ in 0 .. 300 {
-		task.run();
-	}
-
-	for nb_iterations in 0 .. {
-		if task.nb_running_tasks() == 0 {
-			break;
-		}
-
-		if task.update() {
-			sleep(Duration::from_millis(1000));
-		} else {
-			if nb_iterations < 20 {
-				for _ in 0 .. 100 {
-					task.run();
-				}
-			}
-			sleep(Duration::from_secs(1));
-		}
-		info!("Waiting, {} running threads", task.nb_running_tasks());
-	}
-	info!("{}", task.stats());
-	*/
 }

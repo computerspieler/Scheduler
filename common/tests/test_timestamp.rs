@@ -1,5 +1,5 @@
 use chrono::{Datelike, TimeZone, Timelike, Utc};
-use scheduler::utils::get_start_timestamp_from_string;
+use common::utils::get_start_timestamp_from_string;
 
 #[test]
 fn test_get_start_timestamp_from_string_0() {
