@@ -1,5 +1,5 @@
 use std::{
-	collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, path::PathBuf, process::ExitStatus, sync::PoisonError, time::{Duration, Instant}
+	collections::HashMap, convert::Infallible, io, ops::{ControlFlow, FromResidual, Try}, os::unix::process::CommandExt, path::PathBuf, process::ExitStatus, sync::PoisonError, time::{Duration, Instant}
 };
 
 use serde::{Deserialize, Serialize};
@@ -115,7 +115,11 @@ pub struct Command {
 	pub envs: Option<HashMap<String, String>>,
     #[serde(rename = "chdir")]
 	#[serde(default = "default_path")]
-	pub current_dir: PathBuf
+	pub current_dir: PathBuf,
+	#[serde(rename = "uid")]
+	pub uid: Option<u32>,
+	#[serde(rename = "gid")]
+	pub gid: Option<u32>,
 }
 
 fn default_path() -> PathBuf {
@@ -132,6 +136,12 @@ impl Command {
 			cmd.envs(map);
 		}
 		cmd.current_dir(&self.current_dir);
+		if let Some(id) = self.uid {
+			cmd.uid(id);
+		}
+		if let Some(id) = self.gid {
+			cmd.gid(id);
+		}
 
 		let output = cmd.output()?;
 		let duration = start.elapsed();

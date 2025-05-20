@@ -10,7 +10,9 @@ use crate::{task::{Task, TaskConfig}, utils::{get_period_from_string, get_start_
 pub struct TaskGroup {
     name: String,
     starts_at: Option<DateTime<Utc>>,
+    starts_at_str: Option<String>,
     period: Option<YmdHmsDuration>,
+    period_str: Option<String>,
     processes: Vec<Task>,
 
     next_execution: Option<DateTime<Utc>>
@@ -38,11 +40,8 @@ impl Serialize for TaskGroup {
     where S: Serializer {
         SerializedTaskGroup {
             name: self.name.clone(),
-            starts_at: self.starts_at
-                .map(|dt| { dt.to_string() }),
-            period: self.period
-                .as_ref()
-                .map(|per| { per.to_string() }),
+            starts_at: self.starts_at_str.clone(),
+            period: self.period_str.clone(),
             processes: self.processes.iter()
                 .map(|task| task.config())
                 .collect()
@@ -54,14 +53,8 @@ impl From<SerializedTaskGroup> for TaskGroup {
     fn from(conf: SerializedTaskGroup) -> Self {
         TaskGroup::new(
             conf.name,
-            conf.starts_at.map(|x|
-                get_start_timestamp_from_string(x.as_str())
-                    .expect(format!("Invalid date: {}", x).as_str())
-            ),
-            conf.period.map(|x|
-                get_period_from_string(x.as_str())
-                    .expect(format!("Invalid period: {}", x).as_str())
-            ),
+            conf.starts_at,
+            conf.period,
             conf.processes.iter()
                 .map(|conf| {
                     Task::new(conf.clone())
@@ -74,20 +67,34 @@ impl From<SerializedTaskGroup> for TaskGroup {
 impl TaskGroup {
     pub fn new(
         name: String,
-        starts_at: Option<DateTime<Utc>>,
-        period: Option<YmdHmsDuration>,
+        starts_at: Option<String>,
+        period: Option<String>,
         processes: Vec<Task>
     ) -> Self {
+        let starts_at_date = starts_at.as_ref()
+            .map(|x|
+                get_start_timestamp_from_string(x.as_str())
+                    .expect(format!("Invalid date: {}", x).as_str())
+            );
+
+        let period_ymd_hms = period.as_ref()
+            .map(|x|
+                get_period_from_string(x.as_str())
+                    .expect(format!("Invalid period: {}", x).as_str())
+            );
+
         let mut out = Self {
             name: name,
-            starts_at: starts_at,
-            period: period,
+            starts_at_str: starts_at,
+            starts_at: starts_at_date,
+            period_str: period,
+            period: period_ymd_hms,
             processes: processes,
 
             next_execution: None
         };
 
-        if let Some(start) = starts_at {
+        if let Some(start) = out.starts_at {
             out.update_next_execution(start);
         }
 

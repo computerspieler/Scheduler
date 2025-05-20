@@ -1,13 +1,31 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
-use log::debug;
+use log::{debug, error, info};
 
 use common::{group::TaskGroup};
+use serde::{Serialize, Serializer};
 
 #[derive(Debug)]
 pub struct Environment {
     pub groups: Vec<TaskGroup>,
     pub log: Option<PathBuf>,
+    pub dirty: bool
+}
+
+impl Serialize for Environment {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+        #[derive(Serialize)]
+        struct SerializedEnvironment<'a> {
+            pub groups: &'a Vec<TaskGroup>,
+            pub log: &'a Option<PathBuf>,
+        }
+
+        SerializedEnvironment {
+            groups: &self.groups,
+            log: &self.log,
+        }.serialize(serializer)
+    }
 }
 
 impl Environment {
@@ -15,6 +33,18 @@ impl Environment {
         debug!("[ENV] Update");
         for group in self.groups.iter_mut() {
             group.update();
+        }
+
+        if self.dirty {
+            //TODO: Change
+            if let Err(e) = fs::write("config.json",
+                serde_json::to_string(self).unwrap()
+            ) {
+                error!("Unable to save the config: {}", e);
+            } else {
+                info!("Sucessfully saved the configuration");
+                self.dirty = false;
+            }
         }
     }
 
@@ -30,7 +60,8 @@ impl Environment {
             task_group.set_log_path(group_path);
         }
 
-        self.groups.push(task_group)
+        self.groups.push(task_group);
+        self.dirty = true;
     }
 
     pub fn set_log_path(&mut self, path: PathBuf) {

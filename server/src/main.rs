@@ -10,12 +10,10 @@ mod environment;
 
 pub static LOGGER: SimpleLogger = SimpleLogger;
 
-
 pub struct Server {
     env: Arc<RwLock<Environment>>,
     listener: Option<TcpListener>
 }
-
 
 impl<'de> Deserialize<'de> for Server {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -31,6 +29,7 @@ impl<'de> Deserialize<'de> for Server {
         let mut output_env = Environment {
             groups: val.groups,
             log: None,
+			dirty: false
         };
         if let Some(path) = val.log {
             output_env.set_log_path(path);
