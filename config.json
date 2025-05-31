@@ -1,47 +1,4 @@
 {
-    "log": "logs",
-    "listening": "127.0.0.1:65533",
-    "groups": [
-        {
-            "name": "Group 1",
-            "starts_at": "****-**-**T**:**:00-0001",
-            "period": "0000-00-00 00:01:00",
-            "processes": [
-                {
-                    "name": "Wait for stuff",
-                    "cmd": {
-                        "program": "/bin/ls",
-                        "args": [],
-                        "chdir": "/home/user"
-                    }
-                },
-                {
-                    "name": "Print stuff",
-                    "cmd": {
-                        "program": "/bin/echo",
-                        "args": [
-                            "7",
-                            "dsq"
-                        ]
-                    },
-                    "max_concurrent_execution": 2
-                }
-            ]
-        },
-        {
-            "name": "Group 1",
-            "starts_at": "****-**-**T**:**:00-0001",
-            "period": "0000-00-00 00:01:00",
-            "processes": [
-                {
-                    "name": "Wait for stuff",
-                    "cmd": {
-                        "program": "/bin/echo",
-                        "args": ["Yay"],
-                        "chdir": "/home/user"
-                    }
-                }
-            ]
-        }
-    ]
+    "groups": [],
+    "log": "/var/log/scheduler"
 }

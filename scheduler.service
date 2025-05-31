@@ -1,0 +1,15 @@
+[Unit]
+Description=Process scheduler
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=user
+WorkingDirectory=/etc/scheduler
+ExecStart=/usr/local/bin/scheduler-server config.json
+
+[Install]
+WantedBy=multi-user.target
